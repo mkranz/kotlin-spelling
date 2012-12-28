@@ -1,10 +1,7 @@
 import java.io.File
-import java.util.ArrayList
-import java.util.Dictionary
-import java.util.HashMap
-import java.util.HashSet
-import java.util.Arrays
 import extensions.or
+import java.util.HashMap
+import java.util.Arrays
 
 // Peter Norvig's "How to Write a Spelling Corrector"
 // http://norvig.com/spell-correct.html
@@ -24,8 +21,28 @@ object Model {
                 .mapValues { kv -> kv.value.size  }
     }
 
+    fun edits1(word: String) : List<String> {
+        var nonEmpty = {(p : Pair<String,String>) -> p.second.length > 0}
+        var alphabet = 'a'..'z'
+        var splits = (0..word.size).map{i -> Pair(word.substring(0,i),word.substring(i))}
+        var deletes = splits.filter(nonEmpty).map{p -> p.first + p.second.substring(1)}
+        var transposes =  splits.filter{p -> p.second.length > 1}.map{p -> p.first +p.second[1] + p.second[0]+p.second.substring(2)}
+        var replaces = alphabet.flatMap{letter -> splits.filter(nonEmpty).map{p -> p.first + letter + p.second.substring(1)}}
+        var inserts = alphabet.flatMap{letter -> splits.map{p -> p.first + letter + p.second }}
+
+        return deletes + transposes + replaces + inserts;
+    }
+
+    fun edits2(word: String): Iterable<String> {
+        return edits1(word).flatMap{w -> edits1(w)}
+    }
+
     fun known(words: Iterable<String>): Iterable<String> {
         return words.filter{word -> NWORDS.containsKey(word)}
+    }
+
+    fun known(vararg words : String): Iterable<String> {
+        return known(words.toList())
     }
 
     fun max(a : String, b : String) : String {
@@ -33,35 +50,14 @@ object Model {
     }
 
     fun correct(word: String): String {
-        var candidates = known(Arrays.asList(word)).or(known(edits1(word))).or(Arrays.asList(word))
+        var candidates = known(word) or known(edits1(word)) or known(edits2(word)) or word
         return candidates.reduce { (a,b) -> max(a,b) }
     }
 }
 
-fun edits1(word: String) : Set<String> {
-    // some thoughts on cleaning up
-    // 1) use an anonymous class rather than 'pair'
-    // 2) add extension method for ".filter{p -> p.second.length > 0}" (essentially means non empty)
-    var alphabet = 'a'..'z'
-    var splits = (0..word.size).map{i -> Pair(word.substring(0,i),word.substring(i))}
-    var deletes = splits.filter{p -> p.second.length > 0}.map{p -> p.first + p.second.substring(1)}
-    var transposes =  splits.filter{p -> p.second.length > 1}.map{p -> p.first+p.second[1] + p.second[0]+p.second.substring(2)}
-    var replaces = alphabet.flatMap{a -> splits.filter{p -> p.second.length > 0}.map{p -> p.first + a + p.second.substring(1)}}
-    var inserts = alphabet.flatMap{a -> splits.map{p -> p.first + a + p.second}}
-
-    var result = HashSet<String>()
-    result.addAll(deletes)
-    result.addAll(transposes)
-    result.addAll(replaces)
-    result.addAll(inserts)
-
-    return result;
-}
-
-
 fun main(args: Array<String>): Unit {
     Model.load("big.txt")
 
-    println("poteto")
-    println(Model.correct("poteto"))
+    println("poteto -> " + Model.correct("poteto"))
+    println("korrecter -> " + Model.correct("korrecter"))
 }
